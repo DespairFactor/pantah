@@ -4794,7 +4794,7 @@ static int exynos_pcie_rc_suspend_noirq(struct device *dev)
 	u32 val, val_irq0, val_irq1, val_irq2;
 
 	if (exynos_pcie->state == STATE_LINK_DOWN) {
-		dev_info(dev, "PCIe PMU ISOLATION\n");
+		dev_dbg(dev, "PCIe PMU ISOLATION\n");
 		exynos_pcie_phy_isolation(exynos_pcie, PCIE_PHY_ISOLATION);
 
 		return 0;
