@@ -79,6 +79,24 @@ static void disable_domain(struct exynos_cpufreq_domain *domain)
 	mutex_unlock(&domain->lock);
 }
 
+static unsigned int resolve_freq(struct cpufreq_policy *policy,
+				unsigned int target_freq, int relation)
+{
+	unsigned int index = -1;
+
+	if (relation == CPUFREQ_RELATION_L)
+		index = cpufreq_table_find_index_al(policy, target_freq);
+	else if (relation == CPUFREQ_RELATION_H)
+		index = cpufreq_table_find_index_ah(policy, target_freq);
+
+	if (index < 0) {
+		pr_err("target frequency(%d) out of range\n", target_freq);
+		return 0;
+	}
+
+	return policy->freq_table[index].frequency;
+}
+
 /*********************************************************************
  *                   PRE/POST HANDLING FOR SCALING                   *
  *********************************************************************/
@@ -352,36 +370,39 @@ static int exynos_cpufreq_offline(struct cpufreq_policy *policy)
 
 static int exynos_cpufreq_verify(struct cpufreq_policy_data *new_policy)
 {
-	struct exynos_cpufreq_domain *domain = find_domain(new_policy->cpu);
-	struct cpufreq_policy policy;
-	unsigned int min_freq, max_freq;
-	int index, ret;
+	int ret, policy_cpu = new_policy->cpu;
+	struct exynos_cpufreq_domain *domain;
+	struct cpufreq_policy *policy;
+	unsigned int min = new_policy->min, max = new_policy->max;
 
+	domain = find_domain(policy_cpu);
 	if (!domain)
 		return -EINVAL;
 
-	policy.freq_table = new_policy->freq_table;
+	policy = cpufreq_cpu_get(policy_cpu);
+	if (!policy)
+		return -ENODATA;
 
-	index = cpufreq_table_find_index_ah(&policy, new_policy->max);
-	if (index == -1) {
-		pr_err("%s : failed to find a proper max frequency\n", __func__);
-		return -EINVAL;
-	}
-	max_freq = policy.freq_table[index].frequency;
+	/*
+	 * if min/maxfrequency is updated, find valid frequency
+	 * from the table
+	 */
+	if (min != policy->min)
+		min = resolve_freq(policy, min, CPUFREQ_RELATION_L);
+	if (max != policy->max)
+		max = resolve_freq(policy, max, CPUFREQ_RELATION_H);
 
-	index = cpufreq_table_find_index_al(&policy, new_policy->min);
-	if (index == -1) {
-		pr_err("%s : failed to find a proper min frequency\n", __func__);
-		return -EINVAL;
-	}
-	min_freq = policy.freq_table[index].frequency;
+	/* We don't want that the minimum overs the maximum anytime */
+	if (min > max)
+		min = max;
 
-	domain->max_freq_qos = max_freq;
-	domain->min_freq_qos = min_freq;
+	domain->max_freq_qos = max;
+	domain->min_freq_qos = min;
 
 	new_policy->max = domain->max_freq_qos;
 	new_policy->min = domain->min_freq_qos;
 
+	/* update DM and thermal pressure with new min/max */
 	policy_update_call_to_DM(domain->dm_type,
 				 domain->min_freq_qos,
 				 domain->max_freq_qos);
@@ -541,8 +562,11 @@ static int exynos_cpufreq_pm_notifier(struct notifier_block *notifier,
 			policy = cpufreq_cpu_get(cpumask_any(&domain->cpus));
 			if (!policy)
 				continue;
-			if (__exynos_cpufreq_suspend(policy, domain))
+			if (__exynos_cpufreq_suspend(policy, domain)) {
+				cpufreq_cpu_put(policy);
 				return NOTIFY_BAD;
+			}
+			cpufreq_cpu_put(policy);
 		}
 		break;
 	case PM_POST_SUSPEND:
@@ -550,8 +574,11 @@ static int exynos_cpufreq_pm_notifier(struct notifier_block *notifier,
 			policy = cpufreq_cpu_get(cpumask_any(&domain->cpus));
 			if (!policy)
 				continue;
-			if (__exynos_cpufreq_resume(policy, domain))
+			if (__exynos_cpufreq_resume(policy, domain)) {
+				cpufreq_cpu_put(policy);
 				return NOTIFY_BAD;
+			}
+			cpufreq_cpu_put(policy);
 		}
 		break;
 	}
@@ -1051,19 +1078,6 @@ static void freq_qos_release(struct work_struct *work)
 }
 
 static int
-init_user_freq_qos(struct exynos_cpufreq_domain *domain, struct cpufreq_policy *policy)
-{
-	int ret = freq_qos_add_request(&policy->constraints, &domain->user_min_qos_req,
-				       FREQ_QOS_MIN, domain->min_freq);
-	if (ret < 0)
-		return ret;
-
-	ret = freq_qos_add_request(&policy->constraints, &domain->user_max_qos_req,
-				   FREQ_QOS_MAX, domain->soft_max_freq);
-	return ret;
-}
-
-static int
 init_freq_qos(struct exynos_cpufreq_domain *domain, struct cpufreq_policy *policy)
 {
 	unsigned int boot_qos, val;
@@ -1183,7 +1197,6 @@ static int init_domain(struct exynos_cpufreq_domain *domain,
 	const char *buf;
 	struct device *cpu_dev;
 	int ret;
-	unsigned int resume_freq = 0;
 
 	/* Get CAL ID */
 	ret = of_property_read_u32(dn, "cal-id", &domain->cal_id);
@@ -1198,18 +1211,12 @@ static int init_domain(struct exynos_cpufreq_domain *domain,
 	 * to bigger one.
 	 */
 	domain->max_freq = cal_dfs_get_max_freq(domain->cal_id);
-	domain->soft_max_freq = domain->max_freq;
 	domain->min_freq = cal_dfs_get_min_freq(domain->cal_id);
 
 	if (!of_property_read_u32(dn, "max-freq", &val))
-		domain->max_freq = val;
+		domain->max_freq = min(domain->max_freq, val);
 	if (!of_property_read_u32(dn, "min-freq", &val))
 		domain->min_freq = max(domain->min_freq, val);
-	if (!of_property_read_u32(dn, "resume-freq", &val))
-		resume_freq = max(domain->min_freq, val);
-	if (!of_property_read_u32(dn, "soft-max-freq", &val))
-		domain->soft_max_freq = min(domain->max_freq, val);
-	domain->soft_max_freq = max(domain->soft_max_freq, domain->min_freq);
 
 	domain->max_freq_qos = domain->max_freq;
 	domain->min_freq_qos = domain->min_freq;
@@ -1246,8 +1253,6 @@ static int init_domain(struct exynos_cpufreq_domain *domain,
 		domain->max_freq = min(domain->max_freq, (unsigned int)freq_table[index]);
 		domain->max_freq_qos = domain->max_freq;
 	}
-
-	resume_freq = min(resume_freq, domain->max_freq);
 
 	/*
 	 * Set frequency table size.
@@ -1340,8 +1345,7 @@ static int init_domain(struct exynos_cpufreq_domain *domain,
 		domain->need_awake = true;
 
 	domain->boot_freq = cal_dfs_get_boot_freq(domain->cal_id);
-	domain->resume_freq = resume_freq ? resume_freq :
-					    cal_dfs_get_resume_freq(domain->cal_id);
+	domain->resume_freq = cal_dfs_get_resume_freq(domain->cal_id);
 	domain->old = get_freq(domain);
 	if (domain->old < domain->min_freq || domain->max_freq < domain->old) {
 		pr_info("Out-of-range freq(%dkhz) returned for domain%d in init time\n",
@@ -1454,12 +1458,6 @@ static int exynos_cpufreq_probe(struct platform_device *pdev)
 		if (!policy) {
 			pr_err("failed to find domain policy!\n");
 			return -ENODEV;
-		}
-
-		ret = init_user_freq_qos(domain, policy);
-		if (ret < 0) {
-			pr_err("Failed to set max user qos vote!\n");
-			return ret;
 		}
 
 		enable_domain(domain);
