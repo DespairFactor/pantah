@@ -99,12 +99,12 @@ static int find_least_loaded_cpu(struct task_struct *p, struct cpumask *lowest_m
 	bool fit_orig_and_non_overutilized_found = false, fit_orig_and_overutilized_found = false;
 	unsigned long rq_util_min, rq_util_max;
 
+	cpumask_clear(backup_mask);
 	if (cpumask_weight(lowest_mask) == 1)
 		return cpumask_first(lowest_mask);
 
 	rcu_read_lock();
 
-	cpumask_clear(backup_mask);
 	min_exit_lat = UINT_MAX;
 	min_cpu_util = ULONG_MAX;
 	min_cpu_capacity = ULONG_MAX;
