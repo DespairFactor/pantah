@@ -248,10 +248,6 @@ static int find_lowest_rq(struct task_struct *p, struct cpumask *backup_mask)
 	int cpu;
 	int ret;
 
-	if (p->nr_cpus_allowed == 1) {
-		return cpumask_first(p->cpus_ptr);
-	}
-
 	ret = cpupri_find_fitness(&task_rq(p)->rd->cpupri, p, &lowest_mask, NULL);
 	if (!ret) {
 		return -1;
