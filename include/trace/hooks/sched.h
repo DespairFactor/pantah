@@ -204,12 +204,6 @@ DECLARE_HOOK(android_vh_update_next_freq,
 		unsigned int *new_next_freq, s64 delta_ns),
 	TP_ARGS(policy, old_next_freq, new_next_freq, delta_ns));
 
-DECLARE_HOOK(android_vh_em_cpu_energy,
-	TP_PROTO(struct em_perf_domain *pd,
-		unsigned long max_util, unsigned long sum_util,
-		unsigned long *energy),
-	TP_ARGS(pd, max_util, sum_util, energy));
-
 DECLARE_RESTRICTED_HOOK(android_rvh_sched_balance_rt,
 	TP_PROTO(struct rq *rq, struct task_struct *p, int *done),
 	TP_ARGS(rq, p, done), 1);
