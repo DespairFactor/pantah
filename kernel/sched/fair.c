@@ -6806,6 +6806,7 @@ static int find_energy_efficient_cpu(struct task_struct *p, int prev_cpu, int sy
 	for (; pd; pd = pd->next) {
 		unsigned long cpu_cap, cpu_thermal_cap, util;
 		unsigned long cur_delta, max_spare_cap = 0;
+        unsigned long base_energy;
 		bool compute_prev_delta = false;
 		int max_spare_cap_cpu = -1;
 		cpumask_and(cpus, perf_domain_span(pd), cpu_online_mask);
