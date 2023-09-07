@@ -106,6 +106,7 @@ struct exynos_pm_qos_constraints {
 	enum exynos_pm_qos_type type;
 	struct blocking_notifier_head *notifiers;
 	spinlock_t lock;	/* protect plist */
+	struct mutex mlock;
 };
 
 struct exynos_pm_qos_flags {
@@ -125,7 +126,7 @@ enum exynos_pm_qos_req_action {
 	exynos_pm_qos_add_request_trace(__func__, __LINE__, ##arg)
 
 int exynos_pm_qos_update_target(struct exynos_pm_qos_constraints *c, struct plist_node *node,
-				enum exynos_pm_qos_req_action action, int value);
+				enum exynos_pm_qos_req_action action, int value, bool nosync);
 bool exynos_pm_qos_update_flags(struct exynos_pm_qos_flags *pqf,
 				struct exynos_pm_qos_flags_request *req,
 				enum exynos_pm_qos_req_action action, s32 val);
@@ -134,6 +135,8 @@ void exynos_pm_qos_add_request_trace(const char *func, unsigned int line,
 				     int exynos_pm_qos_class,
 				     s32 value);
 void exynos_pm_qos_update_request(struct exynos_pm_qos_request *req,
+				  s32 new_value);
+void exynos_pm_qos_update_request_nosync(struct exynos_pm_qos_request *req,
 				  s32 new_value);
 void exynos_pm_qos_update_request_timeout(struct exynos_pm_qos_request *req,
 					  s32 new_value, unsigned long timeout_us);

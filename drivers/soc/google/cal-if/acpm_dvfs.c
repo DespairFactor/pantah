@@ -170,7 +170,7 @@ EXPORT_SYMBOL_GPL(exynos_acpm_set_policy);
 static void acpm_noti_mif_callback(unsigned int *cmd, unsigned int size)
 {
 	pr_info("%s : req %d KHz\n", __func__, cmd[1]);
-	exynos_pm_qos_update_request(&mif_request_from_acpm, cmd[1]);
+	exynos_pm_qos_update_request_nosync(&mif_request_from_acpm, cmd[1]);
 }
 
 static int acpm_dvfs_probe(struct platform_device *pdev)
