@@ -875,6 +875,7 @@
   find_vm_area
   find_vpid
   finish_wait
+  finish_swait
   firmware_request_nowarn
   flush_dcache_page
   flush_delayed_work
@@ -1667,6 +1668,7 @@
   preempt_schedule_notrace
   prepare_to_wait
   prepare_to_wait_event
+  prepare_to_swait_exclusive
   print_hex_dump
   printk
   printk_deferred
@@ -2148,8 +2150,10 @@
   suspend_set_ops
   __sw_hweight32
   __sw_hweight64
+  swake_up_one
   sync_file_create
   sync_file_get_fence
+  synchronize_hardirq
   synchronize_irq
   synchronize_net
   synchronize_rcu
