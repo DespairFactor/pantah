@@ -875,6 +875,7 @@
   find_vm_area
   find_vpid
   finish_wait
+  finish_swait
   firmware_request_nowarn
   flush_dcache_page
   flush_delayed_work
@@ -1664,6 +1665,7 @@
   prandom_u32
   preempt_schedule
   preempt_schedule_notrace
+  prepare_to_swait_exclusive
   prepare_to_wait
   prepare_to_wait_event
   print_hex_dump
@@ -2147,6 +2149,7 @@
   suspend_set_ops
   __sw_hweight32
   __sw_hweight64
+  swake_up_one
   sync_file_create
   sync_file_get_fence
   synchronize_irq
